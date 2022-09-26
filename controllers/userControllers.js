@@ -88,7 +88,26 @@ const getUser = asyncHandler( async (req, res) => {
 });
 
 const updateUser = asyncHandler( async (req, res) => {
+    if (!req.user) {
+        throw new Error('You are logged out');
+    } 
 
+    const data = {
+        name: req.body.name
+    }
+
+    try {
+        await User.updateOne({ _id: req.user._id }, data);
+        const newUser = await User.findById(req.user._id);
+
+        res.status(200).json({
+            _id: newUser._id,
+            name: newUser.name,
+            email: newUser.email
+        });
+    } catch (error) {
+        console.log(error)
+    }
 });
 
 module.exports = {
