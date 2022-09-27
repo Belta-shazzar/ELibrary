@@ -71,7 +71,7 @@ const registerUser = asyncHandler( async (req, res) => {
                 from: 'ovoexample@gmail.com', 
                 to: user.email,     
                 subject: 'Account Verification Link', 
-                html: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' 
+                html: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/api/users/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' 
             };
             
             try {
@@ -99,6 +99,38 @@ const registerUser = asyncHandler( async (req, res) => {
     }
 });
 
+//* Confirm email
+
+const confirmEmail = asyncHandler( async (req, res) => {
+    const token = await TokenVerif.findOne({ token: req.params.token });
+
+    if (!token) {
+        res.status(400);
+        throw new Error('Your verification link may have expired. Please click on resend for verify your Email.');
+    } else {
+        const user = await User.findById(token.user_id);
+
+        if (!user) {
+            res.status(401);
+            throw new Error('We were unable to find a user for this verification. Please SignUp!');
+        } else if (user.isActive) {
+            res.status(200);
+            throw new Error('User has been already verified. Please Login');
+        } else {
+            user.isActive = true;
+            try {
+                await User.updateOne({ _id: token.user_id }, user);   
+                // const updated = User.findById(token.user_id);
+                console.log(user)
+                res.status(200).json({user});
+            } catch (error) {
+                console.log(error);
+                res.status(400);
+                throw new Error('Failed to verify the user');
+            }
+        }
+    }
+});
 
 //? Desc: Logging an user
 //* Route: POST api/users/login
@@ -183,5 +215,6 @@ module.exports = {
     loginUser,
     getMe,
     getUser,
-    updateUser
+    updateUser,
+    confirmEmail
 }
