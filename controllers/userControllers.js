@@ -122,7 +122,7 @@ const confirmEmail = asyncHandler( async (req, res) => {
                 await User.updateOne({ _id: token.user_id }, user);   
                 // const updated = User.findById(token.user_id);
                 console.log(user)
-                res.status(200).json({user});
+                res.status(200).json(`${user.email} has been verified!`);
             } catch (error) {
                 console.log(error);
                 res.status(400);
