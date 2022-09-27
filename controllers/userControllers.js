@@ -57,21 +57,31 @@ const registerUser = asyncHandler( async (req, res) => {
                 } 
             });
 
-            transporter.verify((error, success) => {
-                if (error) {
-                    console.log(error)
-                }   else {
-                    console.log(success)
-                    console.log("Ready to send")
-                }
-            })
-            // const mailOptions = { from: 'no-reply@example.com', to: user.email, subject: 'Account Verification Link', text: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
-            // transporter.sendMail(mailOptions, function (err) {
-            //     if (err) { 
-            //         return res.status(500).send({msg:'Technical Issue!, Please click on resend for verify your Email.'});
-            //      }
-            //     return res.status(200).send('A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.');
-            // });
+            // transporter.verify((error, success) => {
+            //     if (error) {
+            //         console.log(error)
+            //     }   else {
+            //         console.log(success)
+            //         console.log("Ready to send")
+            //     }
+            // })
+
+
+            const mailOptions = { 
+                from: 'ovoexample@gmail.com', 
+                to: user.email,     
+                subject: 'Account Verification Link', 
+                html: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' 
+            };
+            
+            try {
+                const sendResult = await transporter.sendMail(mailOptions);
+                // console.log(sendResult)
+            } catch (error) {
+                // console.log(error)
+                // console.log(user.email)
+                throw new Error("Error ocurred sending an email ")
+            }
         } else {
             res.status(400);
             throw new Error('Failed to verify your email');
