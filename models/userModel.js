@@ -16,6 +16,11 @@ const userSchema = mongoose.Schema({
         type: String,
         required: [true, 'Password field is required']
     },
+
+    isActive: {
+        type: Boolean,
+        default: false
+    }
 }, {
     timestamps: true
 });

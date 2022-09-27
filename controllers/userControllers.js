@@ -2,6 +2,9 @@ const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const asyncHandler = require('express-async-handler');
+const TokenVerif = require('../models/tokenVerifModel');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 //* Generate JWT
 const generateToken = (id) => {
@@ -42,6 +45,38 @@ const registerUser = asyncHandler( async (req, res) => {
     });
 
     if (user) {
+        const token = await TokenVerif.create({ user_id: user._id, token: crypto.randomBytes(16).toString('hex') });
+
+        if (token) {
+            const transporter = nodemailer.createTransport({ 
+                host: 'smtp-relay.sendinblue.com',
+                port: 587,
+                auth: { 
+                    user: process.env.AUTH_EMAIL, 
+                    pass: process.env.AUTH_PASS
+                } 
+            });
+
+            transporter.verify((error, success) => {
+                if (error) {
+                    console.log(error)
+                }   else {
+                    console.log(success)
+                    console.log("Ready to send")
+                }
+            })
+            // const mailOptions = { from: 'no-reply@example.com', to: user.email, subject: 'Account Verification Link', text: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' };
+            // transporter.sendMail(mailOptions, function (err) {
+            //     if (err) { 
+            //         return res.status(500).send({msg:'Technical Issue!, Please click on resend for verify your Email.'});
+            //      }
+            //     return res.status(200).send('A verification email has been sent to ' + user.email + '. It will be expire after one day. If you not get verification Email click on resend token.');
+            // });
+        } else {
+            res.status(400);
+            throw new Error('Failed to verify your email');
+        }   
+
         res.status(201).json({ 
             _id: user._id,
             username: user.name,
@@ -54,6 +89,11 @@ const registerUser = asyncHandler( async (req, res) => {
     }
 });
 
+
+//? Desc: Logging an user
+//* Route: POST api/users/login
+//! Access: Public
+
 const loginUser = asyncHandler( async (req, res) => {
     const { email, password } = req.body;
 
@@ -61,21 +101,35 @@ const loginUser = asyncHandler( async (req, res) => {
     const user = await User.findOne({ email })
 
     if (user && (await bcrypt.compare(password, user.password))) {
-        res.json({
-            _id: user._id,
-            name: user.name,
-            email: user.email,
-            token: generateToken(user._id),
-        })
+
+        if (!user.isActive) {
+            res.status(401);
+            throw new Error('Your Email has not been verified. Please click on resend');
+        } else {
+            res.json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                token: generateToken(user._id),
+            })
+        }
     } else {
-        res.status(400)
-        throw new Error('Invalid credentials')
+        res.status(400);
+        throw new Error('Invalid credentials');
   }
 });
+
+//? Desc: Get data for currently logged in user
+//* Route: GET api/users/me
+//! Access: Private
 
 const getMe = asyncHandler( async (req, res) => {
     res.status(200).json(req.user);
 });
+
+//? Desc: Getting an user info
+//* Route: GET api/users/:id
+//! Access: Public
 
 const getUser = asyncHandler( async (req, res) => {
     const user = await User.findById(req.params.id);
@@ -86,6 +140,10 @@ const getUser = asyncHandler( async (req, res) => {
     
     res.status(200).json({ name: user.name, email: user.email })
 });
+
+//? Desc: Update currently logged in user
+//* Route: PUT api/users/:id
+//! Access: Private
 
 const updateUser = asyncHandler( async (req, res) => {
     if (!req.user) {
