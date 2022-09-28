@@ -132,6 +132,57 @@ const confirmEmail = asyncHandler( async (req, res) => {
     }
 });
 
+const resendEmail = asyncHandler( async (req, res) => {
+    const user = await User.findOne({ email: req.body.email });
+
+    if (!user) {
+        res.status(400);
+        throw new Error('Enter a valid email');
+    } else if (user.isActive) {
+        res.status(200);
+        throw new Error('This account is already activated');
+    } else {
+        const token = await TokenVerif.create({ user_id: user._id, token: crypto.randomBytes(16).toString('hex') });
+
+        if (token) {
+            const transporter = nodemailer.createTransport({ 
+                host: 'smtp-relay.sendinblue.com',
+                port: 587,
+                auth: { 
+                    user: process.env.AUTH_EMAIL, 
+                    pass: process.env.AUTH_PASS
+                } 
+            });
+
+            const mailOptions = { 
+                from: 'ovoexample@gmail.com', 
+                to: user.email,     
+                subject: 'Account Verification Link', 
+                html: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/api/users/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' 
+            };
+            
+            try {
+                const sendResult = await transporter.sendMail(mailOptions);
+                // console.log(sendResult)
+            } catch (error) {
+                // console.log(error)
+                // console.log(user.email)
+                throw new Error("Error ocurred sending an email ")
+            }
+        } else {
+            res.status(400);
+            throw new Error('Failed to verify your email');
+        }   
+
+        res.status(201).json({ 
+            _id: user._id,
+            username: user.name,
+            email: user.email,
+            token: generateToken(user._id)
+        })
+    }
+});
+
 //? Desc: Logging an user
 //* Route: POST api/users/login
 //! Access: Public
@@ -216,5 +267,6 @@ module.exports = {
     getMe,
     getUser,
     updateUser,
-    confirmEmail
+    confirmEmail,
+    resendEmail
 }
