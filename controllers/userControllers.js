@@ -134,6 +134,7 @@ const confirmEmail = asyncHandler( async (req, res) => {
 
 const resendEmail = asyncHandler( async (req, res) => {
     const user = await User.findOne({ email: req.body.email });
+    const tokens = await TokenVerif.find({ user_id: user._id });
 
     if (!user) {
         res.status(400);
@@ -141,8 +142,11 @@ const resendEmail = asyncHandler( async (req, res) => {
     } else if (user.isActive) {
         res.status(200);
         throw new Error('This account is already activated');
+    } else if (tokens.length > 1) {
+        res.status(400);
+        throw new Error('Email has already been resend!');
     } else {
-        const token = await TokenVerif.create({ user_id: user._id, token: crypto.randomBytes(16).toString('hex') });
+        const token = await TokenVerif.create({ user_id: user._id, token: crypto.randomBytes(16).toString('hex')});
 
         if (token) {
             const transporter = nodemailer.createTransport({ 
