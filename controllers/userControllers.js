@@ -144,7 +144,7 @@ const resendEmail = asyncHandler( async (req, res) => {
         throw new Error('This account is already activated');
     } else if (tokens.length > 1) {
         res.status(400);
-        throw new Error('Email has already been resend!');
+        throw new Error('Email has already been resent!');
     } else {
         const token = await TokenVerif.create({ user_id: user._id, token: crypto.randomBytes(16).toString('hex')});
 
