@@ -1,0 +1,6 @@
+Online Library Service
+
+-- For Contribution:
+    Add .env file with:
+        1. JWT_SECRET variable and assign it to your wishes
+        2. Create MongoDB test database and set MONGO variable to your MONGO URI
