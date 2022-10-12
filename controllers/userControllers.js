@@ -5,6 +5,8 @@ const asyncHandler = require('express-async-handler');
 const TokenVerif = require('../models/tokenVerifModel');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const paypal = require("../config/paypal");
+  
 
 //* Generate JWT
 const generateToken = (id) => {
@@ -49,7 +51,7 @@ const registerUser = asyncHandler( async (req, res) => {
 
         if (token) {
             const transporter = nodemailer.createTransport({ 
-                host: 'smtp-relay.sendinblue.com',
+                host: 'smtp.gmail.com',
                 port: 587,
                 auth: { 
                     user: process.env.AUTH_EMAIL, 
@@ -68,7 +70,7 @@ const registerUser = asyncHandler( async (req, res) => {
 
 
             const mailOptions = { 
-                from: 'ovoexample@gmail.com', 
+                from: process.env.AUTH_EMAIL, 
                 to: user.email,     
                 subject: 'Account Verification Link', 
                 html: 'Hello '+ req.body.name +',\n\n' + 'Please verify your account by clicking the link: \nhttp:\/\/' + req.headers.host + '\/api/users/confirmation\/' + user.email + '\/' + token.token + '\n\nThank You!\n' 
@@ -187,7 +189,7 @@ const resendEmail = asyncHandler( async (req, res) => {
     }
 });
 
-//? Desc: Logging an user
+//? Desc: Logging a user
 //* Route: POST api/users/login
 //! Access: Public
 
@@ -202,6 +204,9 @@ const loginUser = asyncHandler( async (req, res) => {
         if (!user.isActive) {
             res.status(401);
             throw new Error('Your Email has not been verified. Please click on resend');
+        } else if (!user.isSubscribed) {
+            res.status(403);
+            throw new Error('You need an active paypal subscription');
         } else {
             res.json({
                 _id: user._id,
@@ -214,6 +219,116 @@ const loginUser = asyncHandler( async (req, res) => {
         res.status(400);
         throw new Error('Invalid credentials');
   }
+});
+
+//? Desc: user paypal subscription 
+//* Route: POST api/users/subscribe
+//! Access: Public
+
+const makePaypalSubscription = asyncHandler(async (req, res) => {
+  const email = req.body.email;
+  const user = await User.findOne(
+    { email: email }
+  );
+  if (!user) {
+    throw new Error(`${email} is not signed up`);
+  } else {
+    const quantity = req.body.quantity || 1;
+    const subscriptionPrice = req.body.price || "25.00";
+    const currency = req.body.currency || "USD";
+    const create_payment_json = {
+      intent: "sale",
+      payer: {
+        payment_method: "paypal",
+      },
+      redirect_urls: {
+        return_url: "http://localhost:5000/api/users/payment/success",
+        cancel_url: "http://localhost:5000/api/users/cancel",
+      },
+      transactions: [
+        {
+          item_list: {
+            items: [
+              {
+                name: "ELibrary Subscription",
+                sku: "001",
+                price: subscriptionPrice,
+                currency: currency,
+                quantity: quantity,
+              },
+            ],
+          },
+          amount: {
+            currency: currency,
+            total: subscriptionPrice,
+          },
+          description: "ELibrary Subscription with paypal",
+        },
+      ],
+    };
+  
+    paypal.payment.create(create_payment_json, function (error, payment) {
+      if (error) {
+        throw error;
+      } else {
+        for (let i = 0; i < payment.links.length; i++) {
+          if (payment.links[i].rel === "approval_url") {
+            res.redirect(payment.links[i].href);
+          }
+        }
+      }
+    });
+  }
+  
+ 
+});
+
+//? Desc: payment success
+//* Route: POST api/users/success
+//! Access: Public
+
+const paymentSuccess = asyncHandler(async (req, res) => {
+  const payerId = req.query.PayerID;
+  const paymentId = req.query.paymentId;
+  const total = "25.00";
+  const currency = "USD";
+  console.log(req.query);
+
+  const execute_payment_json = {
+    payer_id: payerId,
+    transactions: [
+      {
+        amount: {
+          currency: currency,
+          total: total
+        },
+      },
+    ],
+  };
+
+  paypal.payment.execute(
+    paymentId,
+    execute_payment_json,
+    async function (error, payment) {
+      if (error) {
+        console.log(error.response);
+        throw error;
+      } else {
+        const email = payment.payer.payer_info.email;
+        const user = await User.findOneAndUpdate(
+          { email: email },
+          { isSubscribed: true },
+          { new: true }
+        );
+        console.log(user);
+        res.send({
+          message: `${user.name}, your subscription is successful`,
+          payment_details: payment,
+        });
+        // res.send("Success");
+      }
+    }
+  );
 });
 
 //? Desc: Get data for currently logged in user
@@ -272,5 +387,7 @@ module.exports = {
     getUser,
     updateUser,
     confirmEmail,
-    resendEmail
+    resendEmail,
+    makePaypalSubscription,
+    paymentSuccess
 }
